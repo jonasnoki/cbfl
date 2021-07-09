@@ -1,13 +1,11 @@
 # This is a basic workflow to help you get started with Actions
 
-name: CI
+name: publish
 
 # Controls when the workflow will run
 on:
-  # Triggers the workflow on push or pull request events but only for the master branch
+  # published the package when something is pushed to master
   push:
-    branches: [ master ]
-  pull_request:
     branches: [ master ]
 
   # Allows you to run this workflow manually from the Actions tab
@@ -29,5 +27,5 @@ jobs:
         with:
           node-version: '14.x'
       - run: npm install
-      - run: npm run lint
-      - run: npm run build
+      # Because of the prepublishOnly automatic script the lint and build scripts automatically run before publishing
+      - run: npm publish

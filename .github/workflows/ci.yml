@@ -4,8 +4,8 @@ name: ci
 
 # Controls when the workflow will run
 on:
-  # Triggers the workflow on push events for the master branch
-  push:
+  # Triggers the ci when a merge request on master is created
+  pull_request:
     branches: [ master ]
 
   # Allows you to run this workflow manually from the Actions tab

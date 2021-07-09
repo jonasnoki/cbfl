@@ -28,5 +28,5 @@ jobs:
           node-version: '14.x'
       - run: npm install
       # Because of the prepublishOnly automatic script the lint and build scripts automatically run before publishing
-      - run: npm lint
-      - run: npm build
+      - run: npm run lint
+      - run: npm run build

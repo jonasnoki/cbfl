@@ -18,6 +18,6 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
       - run: npm install
       # Because of the prepublishOnly automatic script the lint and build scripts automatically run before publishing
-      - run: npm publish
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - uses: JS-DevTools/npm-publish@v1
+        with:
+          token: ${{ secrets.NPM_TOKEN }}

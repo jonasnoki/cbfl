@@ -8,7 +8,7 @@
     "build": "npx tsc",
     "watch": "npx tsc --watch",
     "lint": "npx eslint src/**",
-    "prepublishOnly" : "npm run lint && npm run build"
+    "prepublishOnly": "npm run lint && npm run build"
   },
   "author": "Jonas Noack",
   "license": "MIT",
@@ -24,5 +24,11 @@
     "nodegit": "^0.27.0",
     "v8-to-istanbul": "^8.0.0"
   },
-  "keywords": ["Change", "Based", "Fault", "Localization", "Commit"]
+  "keywords": [
+    "Change",
+    "Based",
+    "Fault",
+    "Localization",
+    "Commit"
+  ]
 }

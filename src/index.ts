@@ -1,8 +1,8 @@
 import * as childProcess from "child_process";
 import * as fs from "fs";
 import { resolve } from "path";
-import * as Git from "nodegit";
 import { convertCoverage, loadCoverage } from "./coverageConverter";
+import { Diff, Repository } from "nodegit";
 
 console.log("hooks file loaded");
 
@@ -34,7 +34,7 @@ const addFailedLineToFaultyFile = (
   // faultyFile.lines.get(lineNumber).add(failedTestPath)
 };
 
-export const failureLocalization = (options: any) => {
+const createFailureLocalizationHooks = (options: any) => {
   const TEMP_COVERAGE_DIR = "./tempCoverageDir";
   const changedLinesPerFile = new Map();
   const faultLocalizations = {
@@ -46,7 +46,7 @@ export const failureLocalization = (options: any) => {
     beforeAll: async () => {
       console.log("hi from mocha before all hook");
 
-      const repo = await Git.Repository.open(resolve(__dirname, "../.git"));
+      const repo = await Repository.open("./.git");
 
       let targetName;
       let sourceName;
@@ -68,7 +68,7 @@ export const failureLocalization = (options: any) => {
         const toTree = await to.getTree();
         diff = await toTree.diffWithOptions(fromTree, { contextLines: 0 });
       } else {
-        diff = await Git.Diff.indexToWorkdir(repo, undefined, {
+        diff = await Diff.indexToWorkdir(repo, undefined, {
           contextLines: 0
         });
       }
@@ -93,16 +93,15 @@ export const failureLocalization = (options: any) => {
       }
       return Promise.resolve();
     },
-    afterEach: async () => {
-      const mochaInfo = this as any;
-      if (mochaInfo.currentTest.state === "failed") {
-        let fullTestTitle = mochaInfo.currentTest.title;
-        let parent = mochaInfo.currentTest;
+    afterEach: async (currentTest: any) => {
+      if (currentTest.state === "failed") {
+        let fullTestTitle = currentTest.title;
+        let parent = currentTest;
         while (parent.parent.title) {
           parent = parent.parent;
           fullTestTitle = parent.title + " " + fullTestTitle;
         }
-        const currentTestPath = mochaInfo.currentTest.file;
+        const currentTestPath = currentTest.file;
         console.log(
           "The test '" +
           fullTestTitle +
@@ -187,3 +186,5 @@ export const failureLocalization = (options: any) => {
     }
   };
 };
+
+export default createFailureLocalizationHooks;

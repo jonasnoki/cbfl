@@ -34,7 +34,9 @@ const addFailedLineToFaultyFile = (
   // faultyFile.lines.get(lineNumber).add(failedTestPath)
 };
 
-const createFailureLocalizationHooks = (options: any) => {
+const createFailureLocalizationHooks = ({ mochaCommand, targetBranch = "master" }: {
+  mochaCommand: any, targetBranch: string
+}) => {
   const TEMP_COVERAGE_DIR = "./tempCoverageDir";
   const changedLinesPerFile = new Map();
   const faultLocalizations = {
@@ -47,31 +49,12 @@ const createFailureLocalizationHooks = (options: any) => {
       console.log("hi from mocha before all hook");
 
       const repo = await Repository.open("./.git");
+      const target = await repo.getReferenceCommit(targetBranch);
+      const targetTree = await target.getTree();
 
-      let targetName;
-      let sourceName;
-      let diff;
-      // if(process.env.NODE_ENV === "production"){
-      if (
-        process.env.CI_MERGE_REQUEST_TARGET_BRANCH_NAME &&
-        process.env.CI_MERGE_REQUEST_SOURCE_BRANCH_NAME
-      ) {
-        targetName = process.env.CI_MERGE_REQUEST_TARGET_BRANCH_NAME;
-        sourceName = process.env.CI_MERGE_REQUEST_SOURCE_BRANCH_NAME;
-        const from = await repo.getReferenceCommit(
-          "feature/regressionTestAnalyzation"
-        );
-        console.log(sourceName);
-        const fromTree = await from.getTree();
-        console.log(targetName);
-        const to = await repo.getReferenceCommit("master");
-        const toTree = await to.getTree();
-        diff = await toTree.diffWithOptions(fromTree, { contextLines: 0 });
-      } else {
-        diff = await Diff.indexToWorkdir(repo, undefined, {
-          contextLines: 0
-        });
-      }
+      const diff = await Diff.treeToIndex(repo, targetTree, undefined, {
+        contextLines: 0
+      });
 
       const patches = await diff.patches();
       for (const patch of patches) {
@@ -116,7 +99,7 @@ const createFailureLocalizationHooks = (options: any) => {
           "NODE_V8_COVERAGE=" +
           coverageDir +
           " " +
-          options.mochaCommand.replace("-r ./test/hooks.js", "") +
+          mochaCommand.replace("-r ./test/hooks.js", "") +
           " " +
           currentTestPath +
           " --grep \"^" +
@@ -186,5 +169,6 @@ const createFailureLocalizationHooks = (options: any) => {
     }
   };
 };
+
 
 export default createFailureLocalizationHooks;

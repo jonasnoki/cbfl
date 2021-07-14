@@ -6,8 +6,26 @@ import { Diff, Repository } from "nodegit";
 
 console.log("hooks file loaded");
 
-const createFaultyFile = (coverage: any) => {
-  return {
+interface IFaultyFile {
+  path: string,
+  lines: Map<string, Set<string>>,
+  statements: Map<string, Set<string>>,
+  functionMap: Map<string, Set<string>>,
+  statementMap: Map<string, Set<string>>,
+  branchMap: Map<string, Set<string>>,
+}
+
+interface IFailedTest {
+  name: string,
+}
+
+interface IFaultLocalizations {
+  faultyFiles: Map<string, IFaultyFile>;
+  failedTests: Map<string, IFailedTest>
+}
+
+const createFaultyFile = (faultLocalizations: IFaultLocalizations, coverage: any, changedLineCoveragePath: string): IFaultyFile => {
+  const faultyFile: IFaultyFile = {
     path: coverage.path,
     lines: new Map(
       Object.keys(coverage.s).map((key) => [parseInt(key) + 1 + "", new Set()])
@@ -19,16 +37,21 @@ const createFaultyFile = (coverage: any) => {
     statementMap: coverage.statementMap,
     branchMap: coverage.branchMap
   };
+  faultLocalizations.faultyFiles.set(
+    changedLineCoveragePath,
+    faultyFile
+  );
+  return faultyFile
 };
 
 
 const addFailedLineToFaultyFile = (
-  faultyFile: any,
+  faultyFile: IFaultyFile,
   lineNumber: number,
   failedTestPath: string
 ) => {
-  faultyFile.lines.get("" + lineNumber).add(failedTestPath);
-  faultyFile.statements.get("" + (lineNumber - 1)).add(failedTestPath);
+  faultyFile.lines.get("" + lineNumber)?.add(failedTestPath);
+  faultyFile.statements.get("" + (lineNumber - 1))?.add(failedTestPath);
   // faultyFile.branchesMap
   // faultyFile.branches.get(lineNumber).add(failedTestPath)
   // faultyFile.lines.get(lineNumber).add(failedTestPath)
@@ -39,9 +62,9 @@ const createFailureLocalizationHooks = ({ mochaCommand, targetBranch = "master" 
 }) => {
   const TEMP_COVERAGE_DIR = "./tempCoverageDir";
   const changedLinesPerFile = new Map();
-  const faultLocalizations = {
-    faultyFiles: new Map(), // fileID => coverageInfo
-    failedTests: new Map() // testID => testPath
+  const faultLocalizations: IFaultLocalizations = {
+    faultyFiles: new Map(),
+    failedTests: new Map()
   };
 
   return {
@@ -133,24 +156,15 @@ const createFailureLocalizationHooks = ({ mochaCommand, targetBranch = "master" 
 
               lines.forEach((line: number) => {
                 if (changedLineCoverage.s[line - 1]) {
-                  if (
-                    !faultLocalizations.faultyFiles.has(
-                      changedLineCoverage.path
-                    )
-                  ) {
-                    faultLocalizations.faultyFiles.set(
-                      changedLineCoverage.path,
-                      createFaultyFile(changedLineCoverage)
-                    );
-                  }
+                  const faultyFile: IFaultyFile = faultLocalizations.faultyFiles.get(
+                    changedLineCoverage.path
+                  ) || createFaultyFile(faultLocalizations, changedLineCoverage, changedLineCoverage.path);
                   console.log(
                     `The test ${fullTestTitle} ran through line ${line} of the file ${file} which was recently changed!`
                   );
                   // Todo: Aggregate consecutive lines and create comment on the merge request
                   addFailedLineToFaultyFile(
-                    faultLocalizations.faultyFiles.get(
-                      changedLineCoverage.path
-                    ),
+                    faultyFile,
                     line,
                     currentTestPath
                   );

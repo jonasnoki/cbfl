@@ -57,8 +57,26 @@ const addFailedLineToFaultyFile = (
   // faultyFile.lines.get(lineNumber).add(failedTestPath)
 };
 
-const createFailureLocalizationHooks = ({ mochaCommand, targetBranch = "master" }: {
-  mochaCommand: any, targetBranch: string
+const addCommentsToFaultyFilesOnMergeRequest = (faultLocalizations: IFaultLocalizations, gitlabApiToken: string) => {
+  const url = process.env.CI_API_V4_URL + "/projects/" + process.env.CI_PROJECT_ID + "/merge_requests/" + process.env.CI_MERGE_REQUEST_IID + "/notes?private_token=" + gitlabApiToken;
+
+  const formdata = new FormData();
+  formdata.append("body", "Another comment through the API.");
+
+  const requestOptions: RequestInit = {
+    method: "POST",
+    body: formdata,
+    redirect: "follow"
+  };
+
+  fetch(url, requestOptions)
+    .then(response => response.text())
+    .then(result => console.log(result))
+    .catch(error => console.log("error", error));
+};
+
+const createFailureLocalizationHooks = ({ mochaCommand, targetBranch = "master", gitlabApiToken }: {
+  mochaCommand: any, targetBranch: string, gitlabApiToken: string
 }) => {
   const TEMP_COVERAGE_DIR = "./tempCoverageDir";
   const changedLinesPerFile = new Map();
@@ -180,6 +198,7 @@ const createFailureLocalizationHooks = ({ mochaCommand, targetBranch = "master" 
     },
     afterAll: async () => {
       // todo: add comment to merge request
+      addCommentsToFaultyFilesOnMergeRequest(faultLocalizations,gitlabApiToken)
     }
   };
 };

@@ -3,6 +3,10 @@ import * as fs from "fs";
 import { resolve } from "path";
 import { convertCoverage, loadCoverage } from "./coverageConverter";
 import { Diff, Repository } from "nodegit";
+import { IncomingMessage } from "http";
+import { request, RequestOptions } from "https";
+import FormData from "form-data";
+
 
 console.log("hooks file loaded");
 
@@ -41,7 +45,7 @@ const createFaultyFile = (faultLocalizations: IFaultLocalizations, coverage: any
     changedLineCoveragePath,
     faultyFile
   );
-  return faultyFile
+  return faultyFile;
 };
 
 
@@ -58,25 +62,38 @@ const addFailedLineToFaultyFile = (
 };
 
 const addCommentsToFaultyFilesOnMergeRequest = (faultLocalizations: IFaultLocalizations, gitlabApiToken: string) => {
-  const url = process.env.CI_API_V4_URL + "/projects/" + process.env.CI_PROJECT_ID + "/merge_requests/" + process.env.CI_MERGE_REQUEST_IID + "/notes?private_token=" + gitlabApiToken;
 
-  const formdata = new FormData();
-  formdata.append("body", "Another comment through the API.");
+  const form = new FormData();
+  form.append("body", "Another comment through the API.");
 
-  const requestOptions: RequestInit = {
-    method: "POST",
-    body: formdata,
-    redirect: "follow"
+  const url = new URL(process.env.CI_API_V4_URL + "/projects/" + process.env.CI_PROJECT_ID + "/merge_requests/" + process.env.CI_MERGE_REQUEST_IID + "/notes?private_token=" + gitlabApiToken);
+
+  const options: RequestOptions = {
+    "method": "POST",
+    "headers": form.getHeaders()
   };
 
-  fetch(url, requestOptions)
-    .then(response => response.text())
-    .then(result => console.log(result))
-    .catch(error => console.log("error", error));
+  const req = request(url, options, (res: IncomingMessage) => {
+    const chunks: any = [];
+
+    res.on("data", (chunk) => {
+      chunks.push(chunk);
+    });
+
+    res.on("end", (chunk: any) => {
+      const body = Buffer.concat(chunks);
+      console.log(body.toString());
+    });
+
+    res.on("error", (error) => {
+      console.error(error);
+    });
+  });
+  form.pipe(req);
 };
 
 const createFailureLocalizationHooks = ({ mochaCommand, targetBranch = "master", gitlabApiToken }: {
-  mochaCommand: any, targetBranch: string, gitlabApiToken: string
+  mochaCommand: string, targetBranch: string, gitlabApiToken: string
 }) => {
   const TEMP_COVERAGE_DIR = "./tempCoverageDir";
   const changedLinesPerFile = new Map();
@@ -84,6 +101,8 @@ const createFailureLocalizationHooks = ({ mochaCommand, targetBranch = "master",
     faultyFiles: new Map(),
     failedTests: new Map()
   };
+  addCommentsToFaultyFilesOnMergeRequest(faultLocalizations, gitlabApiToken);
+
 
   return {
     beforeAll: async () => {
@@ -198,7 +217,7 @@ const createFailureLocalizationHooks = ({ mochaCommand, targetBranch = "master",
     },
     afterAll: async () => {
       // todo: add comment to merge request
-      addCommentsToFaultyFilesOnMergeRequest(faultLocalizations,gitlabApiToken)
+      addCommentsToFaultyFilesOnMergeRequest(faultLocalizations, gitlabApiToken);
     }
   };
 };

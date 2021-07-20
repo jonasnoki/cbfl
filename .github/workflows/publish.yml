@@ -2,7 +2,7 @@ name: publish
 on:
   # published the package when something is pushed to master
   push:
-    branches: [ master ]
+    branches: [master]
   workflow_dispatch:
 
 jobs:
@@ -14,8 +14,8 @@ jobs:
       - name: Use Node.js
         uses: actions/setup-node@v2
         with:
-          node-version: '14.x'
-          registry-url: 'https://registry.npmjs.org'
+          node-version: "14.x"
+          registry-url: "https://registry.npmjs.org"
       - run: npm install
       # Because of the prepublishOnly automatic script the lint and build scripts automatically run before publishing
       - uses: JS-DevTools/npm-publish@v1

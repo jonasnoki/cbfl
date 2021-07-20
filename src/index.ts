@@ -61,8 +61,20 @@ const addFailedLineToFaultyFile = (
   // faultyFile.lines.get(lineNumber).add(failedTestPath)
 };
 
-const addCommentsToFaultyFilesOnMergeRequest = (faultLocalizations: IFaultLocalizations, gitlabApiToken: string) => {
+// const createCommentFromFaultLocalizations = (faultLocalizations: IFaultLocalizations) => {
+//   let comment = "";
+//   let lastLineFailed = false;
+//   let lastFailedTests = "";
+//   for (const { faultyFile,  } of faultLocalizations.faultyFiles){
+//     if (lastLineFailed){
+//
+//     }
+//     faultyFile.
+//   }
+//   return faultLocalizations.faultyFiles.
+// }
 
+const addCommentsToFaultyFilesOnMergeRequest = (faultLocalizations: IFaultLocalizations, gitlabApiToken: string) => {
   const form = new FormData();
   form.append("body", "Another comment through the API.");
 

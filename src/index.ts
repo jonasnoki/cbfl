@@ -1,7 +1,7 @@
 import * as childProcess from "child_process";
 import * as fs from "fs";
 import { convertCoverage, loadCoverage } from "./coverageConverter";
-import { Diff, Repository } from "nodegit";
+import { Diff, Repository, Revwalk } from "nodegit";
 import { IncomingMessage } from "http";
 import { request, RequestOptions } from "https";
 import FormData from "form-data";
@@ -10,67 +10,59 @@ import { ExecException } from "child_process";
 
 console.log("hooks file loaded");
 
-const addCommentsToFaultyFilesOnMergeRequest = (
-  faultLocalizations: FaultLocalizations,
-  gitlabApiToken: string
-) => {
-  const comment = faultLocalizations.generateComment();
-  const form = new FormData();
-  form.append("body", comment);
-
-  const url = new URL(
-    process.env.CI_API_V4_URL +
-      "/projects/" +
-      process.env.CI_PROJECT_ID +
-      "/merge_requests/" +
-      process.env.CI_MERGE_REQUEST_IID +
-      "/notes?private_token=" +
-      gitlabApiToken
-  );
-
-  const options: RequestOptions = {
-    method: "POST",
-    headers: form.getHeaders(),
-  };
-
-  const req = request(url, options, (res: IncomingMessage) => {
-    const chunks: any = [];
-
-    res.on("data", (chunk) => {
-      chunks.push(chunk);
-    });
-
-    res.on("end", (chunk: any) => {
-      const body = Buffer.concat(chunks);
-      console.log(body.toString());
-    });
-
-    res.on("error", (error) => {
-      console.error(error);
-    });
-  });
-  form.pipe(req);
-};
-
-function getFullTestTitle(currentTest: any) {
-  let fullTestTitle = currentTest.title;
-  let parent = currentTest;
-  while (parent.parent.title) {
-    parent = parent.parent;
-    fullTestTitle = parent.title + " " + fullTestTitle;
-  }
-  return fullTestTitle;
-}
-
-const createFailureLocalizationHooks = ({
-  mochaCommand,
-  targetBranch = "master",
-  gitlabApiToken,
-}: {
+interface IFailureLocalizationOptions {
   mochaCommand: string;
   targetBranch: string;
   gitlabApiToken: string;
-}) => {
+}
+
+async function getAllOids(repo: Repository) {
+  const revwalk = Revwalk.create(repo);
+  revwalk.reset();
+  revwalk.sorting(Revwalk.SORT.TIME);
+  const commit = await repo.getHeadCommit();
+  revwalk.push(commit.id());
+
+  // step through all OIDs for the given reference
+  const allOids = [];
+  let hasNext = true;
+  while (hasNext) {
+    try {
+      const oid = await revwalk.next();
+      allOids.push(oid);
+    } catch (err) {
+      hasNext = false;
+    }
+  }
+  return allOids;
+}
+
+export const traverseHistory = async (mochaCommand: string) => {
+  const repo = await Repository.open("./.git");
+  const allOids = await getAllOids(repo);
+
+  console.log("all Oids", allOids);
+
+  for (const oid in allOids) {
+    //Todo: add error handling
+    const checkoutCommit = childProcess.exec(
+      `TS_NODE_FILES=true node ${__dirname}/checkoutCommit.js ${oid}`
+    );
+    await promiseFromChildProcess(checkoutCommit);
+    const installMocha = childProcess.exec(`npm install mocha@7.1.2`);
+    await promiseFromChildProcess(installMocha);
+    const npmInstall = childProcess.exec(`npm install`);
+    await promiseFromChildProcess(npmInstall);
+    const runTests = childProcess.exec(mochaCommand);
+    await promiseFromChildProcess(runTests);
+  }
+};
+
+export const createFailureLocalizationHooks = ({
+  mochaCommand,
+  targetBranch = "master",
+  gitlabApiToken,
+}: IFailureLocalizationOptions) => {
   const TEMP_COVERAGE_DIR = "./tempCoverageDir";
   const changedLinesPerFile = new Map<string, number[]>();
   const faultLocalizations = new FaultLocalizations();
@@ -168,15 +160,74 @@ const createFailureLocalizationHooks = ({
       return Promise.resolve();
     },
     afterAll: async () => {
-      if (!gitlabApiToken) {
-        await Promise.all(afterAllPromises);
+      await Promise.all(afterAllPromises);
+      if (gitlabApiToken) {
         addCommentsToFaultyFilesOnMergeRequest(
           faultLocalizations,
           gitlabApiToken
         );
+      } else {
+        faultLocalizations.saveToFile();
       }
     },
   };
 };
 
-export default createFailureLocalizationHooks;
+const addCommentsToFaultyFilesOnMergeRequest = (
+  faultLocalizations: FaultLocalizations,
+  gitlabApiToken: string
+) => {
+  const comment = faultLocalizations.generateComment();
+  const form = new FormData();
+  form.append("body", comment);
+
+  const url = new URL(
+    process.env.CI_API_V4_URL +
+      "/projects/" +
+      process.env.CI_PROJECT_ID +
+      "/merge_requests/" +
+      process.env.CI_MERGE_REQUEST_IID +
+      "/notes?private_token=" +
+      gitlabApiToken
+  );
+
+  const options: RequestOptions = {
+    method: "POST",
+    headers: form.getHeaders(),
+  };
+
+  const req = request(url, options, (res: IncomingMessage) => {
+    const chunks: any = [];
+
+    res.on("data", (chunk) => {
+      chunks.push(chunk);
+    });
+
+    res.on("end", (chunk: any) => {
+      const body = Buffer.concat(chunks);
+      console.log(body.toString());
+    });
+
+    res.on("error", (error) => {
+      console.error(error);
+    });
+  });
+  form.pipe(req);
+};
+
+function getFullTestTitle(currentTest: any) {
+  let fullTestTitle = currentTest.title;
+  let parent = currentTest;
+  while (parent.parent.title) {
+    parent = parent.parent;
+    fullTestTitle = parent.title + " " + fullTestTitle;
+  }
+  return fullTestTitle;
+}
+
+function promiseFromChildProcess(child: childProcess.ChildProcess) {
+  return new Promise(function (resolve, reject) {
+    child.addListener("error", reject);
+    child.addListener("exit", resolve);
+  });
+}

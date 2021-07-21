@@ -1,4 +1,5 @@
 import { concatStringSet } from "./utils";
+import * as fs from "fs";
 
 interface IFaultyFile {
   path: string;
@@ -95,5 +96,44 @@ export class FaultLocalizations {
       }
     }
     return comment;
+  }
+
+  public async saveToFile(): Promise<void> {
+    const data = {
+      faultyFiles: this.faultyFiles,
+      failedTests: this.failedTests,
+    };
+
+    const serialized = JSON.stringify(data, FaultLocalizations.replacer);
+    const path = "/faultLocalizations.json";
+    return fs.promises.writeFile(path, serialized, "utf8");
+  }
+
+  private static replacer(key: any, value: any): any {
+    if (value instanceof Map) {
+      return {
+        dataType: "Map",
+        value: Array.from(value.entries()), // or with spread: value: [...value]
+      };
+    } else if (value instanceof Set) {
+      return {
+        dataType: "Set",
+        value: Array.from(value.values()), // or with spread: value: [...value]
+      };
+    } else {
+      return value;
+    }
+  }
+
+  private static reviver(key: any, value: any): any {
+    if (typeof value === "object" && value !== null) {
+      if (value.dataType === "Map") {
+        return new Map(value.value);
+      }
+      if (value.dataType === "Set") {
+        return new Set(value.value);
+      }
+    }
+    return value;
   }
 }

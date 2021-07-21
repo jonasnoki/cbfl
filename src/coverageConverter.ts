@@ -3,7 +3,7 @@ import * as url from "url";
 import * as path from "path";
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-import v8toIstanbul  from "v8-to-istanbul";
+import v8toIstanbul from "v8-to-istanbul";
 
 export const loadCoverage = async (coverageFile: any) => {
   const data: string = fs.readFileSync(coverageFile, "utf8");

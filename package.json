@@ -1,6 +1,6 @@
 {
   "name": "cbfl",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "library that can be used to automatically find points of failure in TypeScript Modules that are tested with Mocha",
   "main": "build/index.js",
   "scripts": {

@@ -51,6 +51,8 @@ export const traverseHistory = async (mochaCommand: string) => {
     await promiseFromChildProcess(checkoutCommit);
     const installMocha = childProcess.exec(`npm install mocha@7.1.2`);
     await promiseFromChildProcess(installMocha);
+    const installCbfl = childProcess.exec(`npm install cbfl@latest`);
+    await promiseFromChildProcess(installCbfl);
     const npmInstall = childProcess.exec(`npm install`);
     await promiseFromChildProcess(npmInstall);
     const runTests = childProcess.exec(mochaCommand);

@@ -168,13 +168,13 @@ const createFailureLocalizationHooks = ({
       return Promise.resolve();
     },
     afterAll: async () => {
-      // todo: add comment to merge request
-      Promise.all(afterAllPromises).then(() =>
+      if (!gitlabApiToken) {
+        await Promise.all(afterAllPromises);
         addCommentsToFaultyFilesOnMergeRequest(
           faultLocalizations,
           gitlabApiToken
-        )
-      );
+        );
+      }
     },
   };
 };

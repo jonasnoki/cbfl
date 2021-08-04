@@ -1,4 +1,3 @@
-import { concatStringSet } from "./utils";
 import * as fs from "fs";
 
 interface IFaultyFile {
@@ -84,12 +83,18 @@ export class FaultLocalizations {
             this.failedTests.get(failedTestPath)?.name
           } from the file "${failedTestPath}" ran through the line ${lineNumber} of the file ${faultyFilePath} which was changed recently changed.`;
         } else if (failedTests.size > 1) {
-          const failedTestsPaths = concatStringSet(failedTests);
-          const failedTestsNames = concatStringSet(
-            failedTests,
-            (inValue: string) => this.failedTests.get(inValue)?.name || ""
+          const failedTestsPaths: string[] = [...failedTests];
+          const failedTestsDescriptions: string[] = failedTestsPaths.map(
+            (failedTestPath: string) =>
+              `<li>**${
+                this.failedTests.get(failedTestPath)?.name || ""
+              }** (${failedTestPath})</li>`
           );
-          comment += `\nThe failed Tests ${failedTestsNames} from the files "${failedTestsPaths}" ran through the line ${lineNumber} of the file ${faultyFilePath} which was changed recently changed.`;
+          const failedTestsBlock: string = failedTestsDescriptions.reduce(
+            (prev, curr) => prev + curr,
+            ""
+          );
+          comment += `The failed Tests <ul> ${failedTestsBlock} </ul> ran through the **line ${lineNumber}** of the file ${faultyFilePath} which was recently changed.`;
 
           console.log(failedTestsPaths);
         }

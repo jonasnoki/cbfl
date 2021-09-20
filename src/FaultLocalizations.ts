@@ -2,11 +2,22 @@ import * as fs from "fs";
 
 interface IFaultyFile {
   path: string;
-  lines: Map<string, Set<string>>;
-  statements: Map<string, Set<string>>;
-  functionMap: Map<string, Set<string>>;
-  statementMap: Map<string, Set<string>>;
-  branchMap: Map<string, Set<string>>;
+  lines: Map<number, Set<string>>; // lineNumber => Set of faultyFiles
+  statements: Map<number, Set<string>>; // statementID => Set of faultyFiles
+  functions: Map<number, Set<string>>; // functionID => Set of faultyFiles
+  functionMap: Map<number, IFunctionInformation>; // functionID => function Information
+  // statementMap: Map<string, Set<string>>;
+}
+
+interface IFunctionInformation {
+  start: ILocation;
+  end: ILocation;
+  name: string;
+}
+
+interface ILocation {
+  line: number;
+  column: number;
 }
 
 interface IFailedTest {
@@ -31,25 +42,43 @@ export class FaultLocalizations {
     coverage: any,
     changedLineCoveragePath: string
   ): IFaultyFile {
+    const functionMap = this.createFunctionMap(coverage);
     const faultyFile: IFaultyFile = {
       path: coverage.path,
       lines: new Map(
-        Object.keys(coverage.s).map((key) => [
-          parseInt(key) + 1 + "",
+        Object.keys(coverage.s).map((statementNumber) => [
+          parseInt(statementNumber) + 1,
+          new Set(),
+        ]) // the line numbers that are put out are just the statements
+      ),
+      statements: new Map(
+        Object.keys(coverage.s).map((statementNumber) => [
+          parseInt(statementNumber),
           new Set(),
         ])
       ),
-      statements: new Map(
-        Object.keys(coverage.s).map((key) => [key, new Set()])
+      functions: new Map(
+        Object.keys(coverage.f).map((functionID) => [
+          parseInt(functionID),
+          new Set(),
+        ])
       ),
-      // branches: new Map(Object.keys(coverage.b).map(key => [key, new Set()])),
-      // functions: new Map(Object.keys(coverage.f).map(key => [key, new Set()])),
-      functionMap: coverage.fnMap,
-      statementMap: coverage.statementMap,
-      branchMap: coverage.branchMap,
+      functionMap,
     };
     this.faultyFiles.set(changedLineCoveragePath, faultyFile);
     return faultyFile;
+  }
+
+  private createFunctionMap(coverage: any): Map<number, IFunctionInformation> {
+    return new Map(
+      Object.keys(coverage.fnMap).map((functionID) => {
+        const info = coverage.fnMap[functionID];
+        return [
+          parseInt(functionID),
+          { start: info.decl.start, end: info.decl.end, name: info.name },
+        ];
+      })
+    );
   }
 
   public addFailedTest(path: string, name: string): void {
@@ -66,11 +95,26 @@ export class FaultLocalizations {
       coverage,
       changedLineCoveragePath
     );
-    faultyFile.lines.get("" + lineNumber)?.add(failedTestPath);
-    faultyFile.statements.get("" + (lineNumber - 1))?.add(failedTestPath);
-    // faultyFile.branchesMap
-    // faultyFile.branches.get(lineNumber).add(failedTestPath)
-    // faultyFile.lines.get(lineNumber).add(failedTestPath)
+    faultyFile.lines.get(lineNumber)?.add(failedTestPath);
+    faultyFile.statements.get(lineNumber - 1)?.add(failedTestPath);
+    faultyFile.functions
+      .get(this.getFunctionIDForLineNumber(lineNumber, faultyFile))
+      ?.add(failedTestPath);
+  }
+
+  private getFunctionIDForLineNumber(
+    lineNumber: number,
+    faultyFile: IFaultyFile
+  ): number {
+    let functionID = -1;
+    faultyFile.functionMap.forEach(
+      (info, id) =>
+        (functionID =
+          lineNumber >= info.start.line && lineNumber <= info.end.line
+            ? id
+            : functionID)
+    );
+    return functionID;
   }
 
   public generateComment() {

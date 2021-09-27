@@ -147,15 +147,21 @@ export class FaultLocalizations {
     return comment;
   }
 
-  public async saveToFile(): Promise<void> {
+  public async saveToFile(commitID: string): Promise<void> {
     const data = {
       faultyFiles: this.faultyFiles,
       failedTests: this.failedTests,
     };
 
     const serialized = JSON.stringify(data, FaultLocalizations.replacer);
-    const path = "/faultLocalizations.json";
-    return fs.promises.writeFile(path, serialized, "utf8");
+    const path = "./faultLocalizations";
+    const filePath = `${path}/${commitID}.json`;
+    fs.mkdir(path, { recursive: true }, function (err) {
+      if (err) return console.log(err);
+
+      return fs.promises.writeFile(filePath, serialized, "utf8");
+    });
+    return Promise.resolve();
   }
 
   private static replacer(key: any, value: any): any {

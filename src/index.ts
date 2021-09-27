@@ -1,7 +1,7 @@
 import * as childProcess from "child_process";
 import * as fs from "fs";
 import { convertCoverage, loadCoverage } from "./coverageConverter";
-import { Diff, Repository, Revwalk } from "nodegit";
+import { Diff, Oid, Repository, Revwalk } from "nodegit";
 import { IncomingMessage } from "http";
 import { request, RequestOptions } from "https";
 import FormData from "form-data";
@@ -66,6 +66,7 @@ export const createFailureLocalizationHooks = ({
   gitlabApiToken,
 }: IFailureLocalizationOptions) => {
   const TEMP_COVERAGE_DIR = "./tempCoverageDir";
+  let commitID = "";
   const changedLinesPerFile = new Map<string, number[]>();
   const faultLocalizations = new FaultLocalizations();
   const afterAllPromises: Promise<void>[] = [];
@@ -76,6 +77,7 @@ export const createFailureLocalizationHooks = ({
 
       const repo = await Repository.open("./.git");
       const target = await repo.getReferenceCommit(targetBranch);
+      commitID = target.id().tostrS();
       const targetTree = await target.getTree();
 
       const diff = await Diff.treeToIndex(repo, targetTree, undefined, {
@@ -169,8 +171,9 @@ export const createFailureLocalizationHooks = ({
           gitlabApiToken
         );
       } else {
-        faultLocalizations.saveToFile();
+        await faultLocalizations.saveToFile(commitID);
       }
+      return Promise.resolve();
     },
   };
 };

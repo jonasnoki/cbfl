@@ -6,7 +6,7 @@ import { IncomingMessage } from "http";
 import { request, RequestOptions } from "https";
 import FormData from "form-data";
 import { FaultLocalizations } from "./FaultLocalizations";
-import { ExecException } from "child_process";
+import { ExecException, ExecSyncOptions } from "child_process";
 
 console.log("hooks file loaded");
 
@@ -39,24 +39,28 @@ async function getAllOids(repo: Repository) {
 
 export const traverseHistory = async (mochaCommand: string) => {
   const repo = await Repository.open("./.git");
-  const allOids = await getAllOids(repo);
+  const allOids: Oid[] = await getAllOids(repo);
+
+  const processOptions: ExecSyncOptions = {
+    stdio: "inherit",
+  };
 
   console.log("all Oids", allOids);
 
-  for (const oid in allOids) {
+  for (const oid of allOids) {
     //Todo: add error handling
-    const checkoutCommit = childProcess.exec(
-      `TS_NODE_FILES=true node ${__dirname}/checkoutCommit.js ${oid}`
-    );
-    await promiseFromChildProcess(checkoutCommit);
-    const installMocha = childProcess.exec(`npm install mocha@7.1.2`);
-    await promiseFromChildProcess(installMocha);
-    const installCbfl = childProcess.exec(`npm install cbfl@latest`);
-    await promiseFromChildProcess(installCbfl);
-    const npmInstall = childProcess.exec(`npm install`);
-    await promiseFromChildProcess(npmInstall);
-    const runTests = childProcess.exec(mochaCommand);
-    await promiseFromChildProcess(runTests);
+    try {
+      childProcess.execSync(
+        `TS_NODE_FILES=true node ${__dirname}/checkoutCommit.js ${oid.tostrS()}`,
+        processOptions
+      );
+      childProcess.execSync(`npm install mocha@7.1.2`, processOptions);
+      childProcess.execSync(`npm link cbfl`, processOptions);
+      childProcess.execSync(`npm install`, processOptions);
+      childProcess.execSync(mochaCommand, processOptions);
+    } catch (err) {
+      console.log(err);
+    }
   }
 };
 
@@ -228,11 +232,4 @@ function getFullTestTitle(currentTest: any) {
     fullTestTitle = parent.title + " " + fullTestTitle;
   }
   return fullTestTitle;
-}
-
-function promiseFromChildProcess(child: childProcess.ChildProcess) {
-  return new Promise(function (resolve, reject) {
-    child.addListener("error", reject);
-    child.addListener("exit", resolve);
-  });
 }

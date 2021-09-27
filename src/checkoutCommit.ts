@@ -5,7 +5,7 @@ import { Checkout, Commit, Diff, Repository, Revwalk } from "nodegit";
   const repo = await Repository.open("./.git");
   const commit = await Commit.lookup(repo, commitId);
 
-  Checkout.tree(repo, commit);
+  Checkout.tree(repo, commit, { checkoutStrategy: Checkout.STRATEGY.FORCE });
 
   return repo.setHeadDetached(commit.id());
 })();

@@ -1,7 +1,7 @@
 import * as childProcess from "child_process";
 import * as fs from "fs";
 import { convertCoverage, loadCoverage } from "./coverageConverter";
-import { Diff, Oid, Repository, Revwalk } from "nodegit";
+import { Commit, Diff, Oid, Repository, Revwalk } from "nodegit";
 import { IncomingMessage } from "http";
 import { request, RequestOptions } from "https";
 import FormData from "form-data";
@@ -37,7 +37,23 @@ async function getAllOids(repo: Repository) {
   return allOids;
 }
 
-export const traverseHistory = async (mochaCommand: string) => {
+async function getPreviousCommit(
+  repo: Repository,
+  commit: Commit
+): Promise<Commit> {
+  const revwalk = Revwalk.create(repo);
+  revwalk.reset();
+  revwalk.sorting(Revwalk.SORT.TIME);
+  revwalk.push(commit.id());
+  await revwalk.next();
+
+  return Commit.lookup(repo, await revwalk.next());
+}
+
+export const traverseHistory = async (
+  mochaCommand: string,
+  hooksFilePath: string
+) => {
   const repo = await Repository.open("./.git");
   const allOids: Oid[] = await getAllOids(repo);
 
@@ -47,17 +63,20 @@ export const traverseHistory = async (mochaCommand: string) => {
 
   console.log("all Oids", allOids);
 
+  const hooksFile = fs.readFileSync(hooksFilePath);
+
   for (const oid of allOids) {
     //Todo: add error handling
     try {
+      childProcess.execSync(`git checkout -f ${oid.tostrS()}`, processOptions);
+      childProcess.execSync(`npm install mocha@8.0.0`, processOptions);
+      childProcess.execSync(`npm install`, processOptions);
+      childProcess.execSync(`npm link cbfl`, processOptions);
+      fs.writeFileSync(hooksFilePath, hooksFile);
       childProcess.execSync(
-        `TS_NODE_FILES=true node ${__dirname}/checkoutCommit.js ${oid.tostrS()}`,
+        `TARGET_COMMIT=${oid.tostrS()} ${mochaCommand}`,
         processOptions
       );
-      childProcess.execSync(`npm install mocha@7.1.2`, processOptions);
-      childProcess.execSync(`npm link cbfl`, processOptions);
-      childProcess.execSync(`npm install`, processOptions);
-      childProcess.execSync(mochaCommand, processOptions);
     } catch (err) {
       console.log(err);
     }
@@ -80,7 +99,12 @@ export const createFailureLocalizationHooks = ({
       console.log("hi from mocha before all hook");
 
       const repo = await Repository.open("./.git");
-      const target = await repo.getReferenceCommit(targetBranch);
+      const target = process.env.TARGET_COMMIT
+        ? await getPreviousCommit(
+            repo,
+            await Commit.lookup(repo, process.env.TARGET_COMMIT)
+          )
+        : await repo.getReferenceCommit(targetBranch);
       commitID = target.id().tostrS();
       const targetTree = await target.getTree();
 
